@@ -1,9 +1,11 @@
 package com.smartlogix.bff.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,13 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.smartlogix.bff.model.PedidoCompletoResponse;
 import com.smartlogix.bff.model.PedidoDTO;
+import com.smartlogix.bff.model.ProductoDTO;
 import com.smartlogix.bff.service.BffService;
 
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/bff")
-// @CrossOrigin(origins = "http://localhost:3000") // Descomenta esto cuando conectes React
+@CrossOrigin(origins = "*") 
 @RequiredArgsConstructor
 public class BffController {
 
@@ -51,5 +54,52 @@ public class BffController {
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }
+    }
+    @GetMapping("/productos")
+    public ResponseEntity<ProductoDTO[]> listarProductos() {
+        return ResponseEntity.ok(bffService.obtenerProductosBff());
+    }
+
+    @PostMapping("/productos")
+    public ResponseEntity<ProductoDTO> crearProducto(@RequestBody ProductoDTO producto) {
+        return ResponseEntity.ok(bffService.crearProductoBff(producto));
+    }
+
+    @PutMapping("/productos/{id}")
+    public ResponseEntity<Void> actualizarProducto(@PathVariable String id, @RequestBody ProductoDTO producto) {
+        bffService.actualizarProductoBff(id, producto);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/productos/{id}")
+    public ResponseEntity<Void> eliminarProducto(@PathVariable String id) {
+        bffService.eliminarProductoBff(id);
+        return ResponseEntity.ok().build();
+    }
+    @GetMapping("/pedidos")
+    public ResponseEntity<PedidoDTO[]> listarPedidos() {
+        return ResponseEntity.ok(bffService.obtenerPedidosBff());
+    }
+    @PostMapping("/pedidos")
+    public ResponseEntity<?> crearPedido(@RequestBody Object pedidoRequest) {
+        try {
+            // Llama a tu servicio para que procese y envíe el pedido al MS-Pedidos
+            Object nuevoPedido = bffService.crearPedido(pedidoRequest);
+            return ResponseEntity.ok(nuevoPedido);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error procesando el pedido: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/pedidos/{id}")
+    public ResponseEntity<Void> actualizarPedido(@PathVariable String id, @RequestBody PedidoDTO pedido) {
+        bffService.actualizarPedidoBff(id, pedido);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/pedidos/{id}")
+    public ResponseEntity<Void> eliminarPedido(@PathVariable String id) {
+        bffService.eliminarPedidoBff(id);
+        return ResponseEntity.ok().build();
     }
 }
