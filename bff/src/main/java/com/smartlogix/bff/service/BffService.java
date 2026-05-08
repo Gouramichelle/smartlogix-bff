@@ -25,6 +25,8 @@ public class BffService {
 
     private final RestTemplate restTemplate;
 
+   
+
     // Inyectamos las URLs desde el application.properties
     @Value("${url.ms.pedidos}")
     private String pedidosUrl;
@@ -98,5 +100,49 @@ public class BffService {
     public void eliminarPedidoBff(Long idPedido) {
         // Simplemente le pasamos la orden de eliminar al MS-Pedidos
         restTemplate.delete(pedidosUrl + "/" + idPedido);
+    }
+    // --- MÉTODOS PROXY PARA INVENTARIO ---
+
+    public ProductoDTO[] obtenerProductosBff() {
+        // Pide los productos al 8081 y los devuelve
+        return restTemplate.getForObject(inventarioUrl, ProductoDTO[].class);
+    }
+
+    public ProductoDTO crearProductoBff(ProductoDTO producto) {
+        // Envía el POST al 8081
+        return restTemplate.postForObject(inventarioUrl, producto, ProductoDTO.class);
+    }
+
+    public void actualizarProductoBff(String id, ProductoDTO producto) {
+        // Envía el PUT al 8081
+        restTemplate.put(inventarioUrl + "/" + id, producto);
+    }
+
+    public void eliminarProductoBff(String id) {
+        // Envía el DELETE al 8081
+        restTemplate.delete(inventarioUrl + "/" + id);
+    }
+    public Object crearPedido(Object pedidoRequest) {
+        try {
+            // postForObject envía el body (pedidoRequest) a la URL y devuelve la respuesta
+            Object pedidoCreado = restTemplate.postForObject(pedidosUrl, pedidoRequest, Object.class);
+            return pedidoCreado;
+        } catch (Exception e) {
+            throw new RuntimeException("Error al comunicarse con MS-Pedidos: " + e.getMessage());
+        }
+    }
+    // Listar todos los pedidos para la tabla de gestión
+    public PedidoDTO[] obtenerPedidosBff() {
+        return restTemplate.getForObject(pedidosUrl, PedidoDTO[].class);
+    }
+
+    // Actualizar un pedido existente
+    public void actualizarPedidoBff(String id, PedidoDTO pedido) {
+        restTemplate.put(pedidosUrl + "/" + id, pedido);
+    }
+
+    // Eliminar un pedido (opcional pero útil)
+    public void eliminarPedidoBff(String id) {
+        restTemplate.delete(pedidosUrl + "/" + id);
     }
 }
