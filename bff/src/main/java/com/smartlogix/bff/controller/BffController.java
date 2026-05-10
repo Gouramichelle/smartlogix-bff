@@ -62,7 +62,11 @@ public class BffController {
 
     @PostMapping("/productos")
     public ResponseEntity<ProductoDTO> crearProducto(@RequestBody ProductoDTO producto) {
-        return ResponseEntity.ok(bffService.crearProductoBff(producto));
+        try {
+            return ResponseEntity.ok(bffService.crearProductoBff(producto));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PutMapping("/productos/{id}")
@@ -89,17 +93,5 @@ public class BffController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error procesando el pedido: " + e.getMessage());
         }
-    }
-
-    @PutMapping("/pedidos/{id}")
-    public ResponseEntity<Void> actualizarPedido(@PathVariable String id, @RequestBody PedidoDTO pedido) {
-        bffService.actualizarPedidoBff(id, pedido);
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/pedidos/{id}")
-    public ResponseEntity<Void> eliminarPedido(@PathVariable String id) {
-        bffService.eliminarPedidoBff(id);
-        return ResponseEntity.ok().build();
     }
 }

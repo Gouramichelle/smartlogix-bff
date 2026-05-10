@@ -8,6 +8,7 @@ import lombok.Data;
 public class PedidoCompletoResponse {
     private Long idPedido;
     private String estado;
+    private String cliente;
     private List<DetalleItem> detalles;
     private Double totalPedido;
 
