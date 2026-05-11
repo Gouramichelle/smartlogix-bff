@@ -2,7 +2,11 @@ package com.smartlogix.bff.service;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -11,11 +15,11 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import com.smartlogix.bff.model.ProductoDTO;
 
 import com.smartlogix.bff.model.PedidoCompletoResponse;
 import com.smartlogix.bff.model.PedidoDTO;
-import com.smartlogix.bff.model.ProductoDTO;
-
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 
 
@@ -34,6 +38,7 @@ public class BffService {
     @Value("${url.ms.inventario}")
     private String inventarioUrl;
 
+    @CircuitBreaker(name = "pedidosCB", fallbackMethod = "fallbackObtenerBoleta")
     public PedidoCompletoResponse obtenerBoletaCompleta(Long idPedido) {
         // 1. Llamamos al MS-Pedidos para obtener el pedido base
         PedidoDTO pedido = restTemplate.getForObject(pedidosUrl + "/" + idPedido, PedidoDTO.class);
@@ -47,6 +52,7 @@ public class BffService {
         PedidoCompletoResponse response = new PedidoCompletoResponse();
         response.setIdPedido(pedido.getId());
         response.setEstado(pedido.getEstado());
+        response.setCliente(pedido.getCliente());
         
         List<PedidoCompletoResponse.DetalleItem> detalles = new ArrayList<>();
         double total = 0.0;
@@ -109,8 +115,12 @@ public class BffService {
     }
 
     public ProductoDTO crearProductoBff(ProductoDTO producto) {
-        // Envía el POST al 8081
-        return restTemplate.postForObject(inventarioUrl, producto, ProductoDTO.class);
+        try {
+            // Envía el POST al 8081
+            return restTemplate.postForObject(inventarioUrl, producto, ProductoDTO.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al crear producto: " + e.getMessage());
+        }
     }
 
     public void actualizarProductoBff(String id, ProductoDTO producto) {
@@ -132,8 +142,34 @@ public class BffService {
         }
     }
     // Listar todos los pedidos para la tabla de gestión
+    @CircuitBreaker(name = "pedidosCB", fallbackMethod = "fallbackObtenerPedidos")
     public PedidoDTO[] obtenerPedidosBff() {
-        return restTemplate.getForObject(pedidosUrl, PedidoDTO[].class);
+        PedidoDTO[] pedidos = restTemplate.getForObject(pedidosUrl, PedidoDTO[].class);
+        ProductoDTO[] catalogo = restTemplate.getForObject(inventarioUrl, ProductoDTO[].class);
+
+        if (pedidos == null) {
+            return new PedidoDTO[0];
+        }
+
+        Map<String, ProductoDTO> mapaProductos = (catalogo == null)
+                ? Map.of()
+                : Arrays.stream(catalogo).collect(Collectors.toMap(ProductoDTO::getSku, Function.identity()));
+
+        for (PedidoDTO pedido : pedidos) {
+            double totalPedido = 0.0;
+            if (pedido.getItems() != null) {
+                for (PedidoDTO.ItemPedidoDTO item : pedido.getItems()) {
+                    ProductoDTO producto = mapaProductos.get(item.getSkuProducto());
+                    if (producto != null) {
+                        item.setPrecioUnitario(producto.getPrecio());
+                        totalPedido += producto.getPrecio() * item.getCantidad();
+                    }
+                }
+            }
+            pedido.setTotalPedido(totalPedido);
+        }
+
+        return pedidos;
     }
 
     // Actualizar un pedido existente
@@ -144,5 +180,21 @@ public class BffService {
     // Eliminar un pedido (opcional pero útil)
     public void eliminarPedidoBff(String id) {
         restTemplate.delete(pedidosUrl + "/" + id);
+    }
+
+    // MÉTODO FALLBACK para Circuit Breaker
+    public PedidoCompletoResponse fallbackObtenerBoleta(Long idPedido, Throwable exception) {
+        PedidoCompletoResponse fallbackResponse = new PedidoCompletoResponse();
+        fallbackResponse.setIdPedido(idPedido);
+        fallbackResponse.setEstado("ERROR_SISTEMA");
+        fallbackResponse.setCliente("No disponible");
+        fallbackResponse.setDetalles(new ArrayList<>());
+        fallbackResponse.setTotalPedido(0.0);
+        return fallbackResponse;
+    }
+
+    public PedidoDTO[] fallbackObtenerPedidos(Throwable exception) {
+        // Retornar array vacío en caso de falla
+        return new PedidoDTO[0];
     }
 }
